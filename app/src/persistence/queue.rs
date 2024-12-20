@@ -31,6 +31,16 @@ pub fn enqueue(topic: &Topic, message: &Message) -> Result<(), Error> {
  */
 pub fn pop(topic: &Topic) -> Result<Option<Message>, Error> {
     let db = get_db();
+
+    /**
+     * Algorithm:
+     * 1. Get the oldest message in the topic, that is not locked
+     * 2. Lock the message by updating the locked_at field to the current timestamp
+     * 3. Return the message
+     * 
+     * Note: A message is considered locked if the locked_at field is not null 
+     * or the locked_at field is less than the current timestamp minus the visibility timeout
+     */
 }
 
 /**
