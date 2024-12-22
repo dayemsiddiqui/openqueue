@@ -1,53 +1,52 @@
+use crate::clients::database::{get_db, insert_data};
+use serde::{Serialize, Deserialize};
+use std::error::Error as StdError;
+use chrono::{DateTime, Utc};
+type Error = Box<dyn StdError>;
 
-pub struct Topic {
-    id: String,
-    name: String,
-    description: String,
-}
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     id: String,
-    topic_id: String,
     data: String,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    // It can be null if the message is not locked
-    locked_at: Option<DateTime<Utc>>,
+    visible_after: Option<DateTime<Utc>>, // None means the message is visible immediately
+    receive_count: u32,
+    enqueued_at: DateTime<Utc>,
 }
 
-/**
- * Enqueue a message into a topic
- * This method will create a new message and add it to the topic
- * This method gets called when a publisher publishes a message to a topic
- */
-pub fn enqueue(topic: &Topic, message: &Message) -> Result<(), Error> {
-    let db = get_db();
+impl Message {
+    pub fn new(data: String) -> Result<Message, Error> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let enqueued_at = Utc::now();
+        Ok(Message { id, data, enqueued_at, visible_after: None, receive_count: 0 })
+    }
+
+    pub fn build_message_key(queue_name: String, message: &Self) -> String {
+        format!("{}:{}:{}", queue_name, message.enqueued_at.timestamp_nanos(), message.id)
+    }   
+
+    pub fn enqueue(queue_name: String, message: &Self) -> Result<(), Error> {
+        let message_key = Self::build_message_key(queue_name, message);
+        let value = serde_json::to_string(message)?;    
+        insert_data(&message_key, &value)?;
+        Ok(())
+    }
 }   
 
 /**
- * Pop a message from a topic
- * This method will return the oldest message in the topic
- * This method gets called when a consumer wants to consume a message from a topic
+ * Pop a message from a queue
+ * This method will return the oldest message in the queue
+ * This method gets called when a consumer wants to consume a message from a queue
  */
-pub fn pop(topic: &Topic) -> Result<Option<Message>, Error> {
-    let db = get_db();
-
-    /**
-     * Algorithm:
-     * 1. Get the oldest message in the topic, that is not locked
-     * 2. Lock the message by updating the locked_at field to the current timestamp
-     * 3. Return the message
-     * 
-     * Note: A message is considered locked if the locked_at field is not null 
-     * or the locked_at field is less than the current timestamp minus the visibility timeout
-     */
+pub fn pop(queue_name: String) -> Result<Option<Message>, Error> {
+    Ok(None)
 }
 
 /**
- * Dequeue a message from a topic
- * This method will remove the message from the topic
+ * Dequeue a message from a queue
+ * This method will remove the message from the queue
  * This method gets called when a consumer acknowledges a message has been processed
  */
-pub fn dequeue(topic: &Topic, messageId: &str) -> Result<(), Error> {
-    let db = get_db();
+pub fn dequeue(queue_name: &str, message_id: &str) -> Result<(), Error> {
+    Ok(())
 }
