@@ -41,7 +41,6 @@ pub async fn stats() -> Json<StatsResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::Json;
 
     #[tokio::test]
     async fn test_stats() {
