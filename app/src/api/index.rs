@@ -21,10 +21,7 @@ pub async fn index() -> Json<IndexResponse> {
     })
 }
 
-pub async fn consume(queue: String) -> Result<(), Error> {
-    let db = get_db();
-    Ok(())
-}
+
 
 pub async fn ack(queue: String, messageId: String) -> Result<(), Error> {
     let db = get_db();

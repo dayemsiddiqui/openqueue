@@ -6,7 +6,7 @@ type Error = Box<dyn StdError>;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
-    id: String,
+    pub id: String,
     data: String,
     visible_after: Option<DateTime<Utc>>, // None means the message is visible immediately
     receive_count: u32,
