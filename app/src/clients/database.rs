@@ -1,21 +1,23 @@
-use rocksdb::{TransactionDB, Options, DB};
+use rocksdb::{OptimisticTransactionDB, Options, DB};
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
-static DB_INSTANCE: Lazy<Mutex<TransactionDB>> = Lazy::new(|| {
+
+static DB_INSTANCE: Lazy<Mutex<OptimisticTransactionDB>> = Lazy::new(|| {
     let path = "database";
-    let db = TransactionDB::open_default(path).expect("Failed to open database connection");
+    let mut opts = Options::default();
+    opts.create_if_missing(true);
+    let db = OptimisticTransactionDB::open(&opts, path).expect("Failed to open database connection");
     Mutex::new(db)
 });
+
+pub fn get_db() -> &'static Mutex<OptimisticTransactionDB> {
+    &DB_INSTANCE
+}
 
 fn open_readonly_db(path: &str) -> Result<DB, rocksdb::Error> {
     let mut opts = Options::default();
     opts.set_max_open_files(-1);  // or any other needed config
     DB::open_for_read_only(&opts, path, /*error_if_log_file_exists=*/false)
-}
-
-
-pub fn get_db() -> &'static Mutex<TransactionDB> {
-    &DB_INSTANCE
 }
 
 pub fn insert_data(key: &str, value: &str) -> Result<(), rocksdb::Error> {

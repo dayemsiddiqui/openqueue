@@ -1,6 +1,7 @@
 use crate::persistence::message::Message;
 use crate::persistence::error::Error;
 use crate::clients::database::{insert_data, get_db};
+use rocksdb::TransactionOptions;
 
 pub struct Queue {
     name: String,
@@ -19,34 +20,39 @@ impl Queue {
         Ok(message_key)
     }
 
-    pub fn consume(&self) -> Result<Message, Error> {
+    pub fn consume(&self) -> Result<Option<Message>, Error> {
         let prefix = format!("{}:", self.name);
         let db = get_db().lock().expect("Failed to lock database");
-
-        // Start a transaction
-        let txn = db.transaction();
         
-        // Get the first message in the queue   
+        // Start a transaction
+        let mut txn = db.transaction();
+        
+        // Get the first message in the queue using the main db   
         let mut prefix_iter = db.prefix_iterator(&prefix.as_bytes());
         let result = match prefix_iter.next() {
             Some(Ok((key, message))) => {
                 let message = Message::from_bytes(&message).expect("Failed to deserialize message");
-                Ok((key, message))
+                Ok(Some((key, message)))
             }
             Some(Err(e)) => Err(Error::new(e.to_string())),
-            None => Err(Error::new("No messages in queue".to_string())),
+            None => Ok(None),
         };   
 
-        let (message_key, message) = result.map_err(|e| Error::new(e.to_string()))?;
-        // Delete the message from the queue
-        txn.delete(&message_key).expect("Failed to delete message from queue");  
+        match result {
+            Ok(Some((message_key, message))) => {
+                // Delete the message from the queue
+                txn.delete(&message_key).expect("Failed to delete message from queue");  
 
-        // Store this message in the "processing" queue
-        let processing_key = format!("processing:{}", String::from_utf8_lossy(&message_key));
-        let message_bytes = message.as_bytes().expect("Failed to serialize message");
-        txn.put(processing_key.as_bytes(), message_bytes).expect("Failed to store message in processing queue");   
+                // Store this message in the "processing" queue
+                let processing_key = format!("processing:{}", String::from_utf8_lossy(&message_key));
+                let message_bytes = message.as_bytes().expect("Failed to serialize message");
+                txn.put(processing_key.as_bytes(), &message_bytes).expect("Failed to store message in processing queue");   
 
-        txn.commit().expect("Failed to commit transaction");    
-        Ok(message)
+                txn.commit().expect("Failed to commit transaction");    
+                Ok(Some(message))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 }   

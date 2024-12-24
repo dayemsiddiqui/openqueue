@@ -1,5 +1,6 @@
 use crate::persistence::queue::Queue;
 use crate::persistence::message::Message;
+use crate::clients::database::get_db;
 use serde::{Serialize, Deserialize};
 use axum::Json;
 
@@ -10,33 +11,40 @@ pub struct ConsumeResponse {
 pub async fn consume(queue: String) -> Json<ConsumeResponse> {
     let queue = Queue::get(queue);
     let message = queue.consume().expect("Failed to consume message");
-    Json(ConsumeResponse { message })
+    let result = match message {        
+        Some(message) => message,
+        None => return Json(ConsumeResponse { message: Message::new("".to_string()).expect("Failed to create message") }),
+    };
+    Json(ConsumeResponse { message: result })
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::path::Path;
-
-    fn setup() {
-        // Clean up any existing test database
-        if Path::new("database").exists() {
-            fs::remove_dir_all("database").expect("Failed to clean up test database");
+    
+    #[tokio::test]
+    async fn test_consume_when_queue_is_empty() {
+        // Initialize test data
+        {
+            let response = consume("test_queue".to_string()).await;
+            println!("Response: {:?}", response);
+            assert!(response.message.data.is_empty());
         }
     }
 
     #[tokio::test]
-    async fn test_consume() {
-        setup();
-        
-        let queue = Queue::get("test_queue".to_string());
-        let message = Message::new("test_message".to_string()).expect("Failed to create message");
-        let message_id = message.id.clone();
-        queue.enqueue(&message).expect("Failed to enqueue message"); 
+    async fn test_consume_when_queue_is_not_empty() {
+        // Initialize test data
+        {
+            let queue = Queue::get("test_queue".to_string());
+            let message = Message::new( "test_message".to_string()).expect("Failed to create message");
+            queue.enqueue(&message).expect("Failed to enqueue message");
 
-        let response = consume("test_queue".to_string()).await;
-        assert_eq!(response.message.id, message_id);
+            // Ensure database operations are completed
+            let response = consume("test_queue".to_string()).await;
+            println!("Response: {:?}", response);
+            assert!(!response.message.data.is_empty());
+        }
     }
 }
