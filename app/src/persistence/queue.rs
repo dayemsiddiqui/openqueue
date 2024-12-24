@@ -1,7 +1,6 @@
 use crate::persistence::message::Message;
 use crate::persistence::error::Error;
 use crate::clients::database::{insert_data, get_db};
-use rocksdb::TransactionOptions;
 
 pub struct Queue {
     name: String,
@@ -19,6 +18,28 @@ impl Queue {
 
         Ok(message_key)
     }
+
+    pub fn clear(&self) -> bool {
+        let prefix = format!("{}:", self.name);
+        let db = get_db().lock().expect("Failed to lock database");
+        let txn = db.transaction();
+        
+        // Return true if the queue is empty
+        if db.prefix_iterator(&prefix.as_bytes()).next().is_none() {
+            return true;
+        }
+
+        // Collect keys and delete in transaction
+        for result in db.prefix_iterator(&prefix.as_bytes()) {
+            let (key, _) = result.expect("Failed to read key");
+            txn.delete(&key).expect("Failed to delete key");
+        }
+        
+        match txn.commit() {    
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }   
 
     pub fn consume(&self) -> Result<Option<Message>, Error> {
         let prefix = format!("{}:", self.name);

@@ -22,7 +22,7 @@ pub async fn consume(queue: String) -> Json<ConsumeResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_consume_when_queue_is_empty() {
         // Initialize test data
