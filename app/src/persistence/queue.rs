@@ -46,7 +46,7 @@ impl Queue {
         let db = get_db().lock().expect("Failed to lock database");
         
         // Start a transaction
-        let mut txn = db.transaction();
+        let txn = db.transaction();
         
         // Get the first message in the queue using the main db   
         let mut prefix_iter = db.prefix_iterator(&prefix.as_bytes());
@@ -77,13 +77,18 @@ impl Queue {
         }
     }
 
-    pub fn ack(&self, message_id: &str) -> bool {
-        let db = get_db().lock().expect("Failed to lock database");
-        let txn = db.transaction();
-        let processing_key = format!("processing:{}", message_id);
-        txn.delete(&processing_key.as_bytes()).expect("Failed to delete message from processing queue");
-        txn.commit().expect("Failed to commit transaction");
-        true
+    pub fn ack(&self, message_id: &str) -> Result<bool, Error> {
+        match self.is_processing(message_id) {
+            true => {
+                let db = get_db().lock().expect("Failed to lock database");
+                let txn = db.transaction();
+                let processing_key = format!("processing:{}", message_id);
+                txn.delete(&processing_key.as_bytes()).expect("Failed to delete message from processing queue");
+                txn.commit().expect("Failed to commit transaction");
+                Ok(true)
+            }
+            false => Ok(false),
+        }
     }
 
     pub fn is_processing(&self, message_id: &str) -> bool {
@@ -107,12 +112,12 @@ mod tests {
         let queue = Queue::get("test_queue".to_string());
         let message = Message::new("test_message".to_string()).expect("Failed to create message");
         queue.enqueue(&message).expect("Failed to enqueue message");
-        queue.ack(&message.id);
+        queue.ack(&message.id).expect("Failed to ack message");
         let result = queue.consume();
         let response = match result {
             Ok(Some(message)) => message,
             Ok(None) => panic!("Expected to receive a message"),
-            Err(e) => panic!("Expected to receive a message"),
+            Err(_) => panic!("Expected to receive a message"),
         }; 
         assert!(response.id == message.id);
 
@@ -125,7 +130,7 @@ mod tests {
         assert!(queue.is_processing(&message.id));
 
         // Ack the message
-        queue.ack(&message.id);
+        queue.ack(&message.id).expect("Failed to ack message");
 
         // Assert that the message is no longer in the processing queue
         assert!(!queue.is_processing(&message.id));

@@ -1,6 +1,5 @@
 use crate::persistence::queue::Queue;
 use crate::persistence::message::Message;
-use crate::clients::database::get_db;
 use serde::{Serialize, Deserialize};
 use axum::Json;
 

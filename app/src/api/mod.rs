@@ -1,3 +1,4 @@
+pub mod ack;
 pub mod control_panel;
 pub mod consume;
 pub mod stats;
