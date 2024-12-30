@@ -1,7 +1,7 @@
 use crate::persistence::queue::Queue;
 use serde::{Serialize, Deserialize};
 use axum::Json;
-use crate::persistence::message::Message;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AckRequest {
     queue: String,
