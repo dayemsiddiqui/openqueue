@@ -2,11 +2,31 @@ import http from 'k6/http';
 import { check } from 'k6';
 
 export const options = {
-    vus: 1,
-    duration: '1s',
+    stages: [
+        { duration: '5s', target: 100 },
+        { duration: '5s', target: 1000 },
+        { duration: '5s', target: 10000 },
+        { duration: '5s', target: 100000 },
+    ],
 }
 
 export default async function () {
+    // callPing();
+    callPublish();
+}
+
+const generateMessage = () => {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+const callPing = async () => {
+    const res = await http.get(`http://localhost:3000/ping`);
+    check(res, {
+        'status is 200': (r) => r.status === 200,
+    });
+}
+
+const callPublish = async () => {
     const queue = 'test_queue';
     const message = generateMessage();
     const payload = JSON.stringify({
@@ -14,17 +34,15 @@ export default async function () {
         message: message,
     });
     const params = {
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
     };
-    const res = await http.post(`http://localhost:3000/publish`, payload, params);
-    check(res, {
-        'status is 200': (r) => r.status === 200,
-        'body status is success': (r) => r.json().status === 'success',
-    });
-}
-
-const generateMessage = () => {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    try {
+        const res = await http.post(`http://localhost:3000/publish`, payload, params);
+        check(res, {
+            'status is 200': (r) => r.status === 200,
+            'body status is success': (r) => r.json().status === 'success',
+        });
+    } catch (e) {
+        console.log(e);
+    }
 }

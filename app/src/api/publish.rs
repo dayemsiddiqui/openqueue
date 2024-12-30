@@ -20,15 +20,23 @@ pub async fn publish(Json(payload): Json<PublishRequest>) -> Json<PublishRespons
     let queue = payload.queue;
     let message = payload.message;
 
-    /*
-     * Algorithm:   
-     * 1. Check if the queue exists
-     * 2. If it does, append the message to the queue
-     * 3. If it doesn't, create the queue and append the message
-     */
-    let message = Message::new(message).expect("Failed to create message");
+    let message = match Message::new(message) {
+        Ok(msg) => msg,
+        Err(e) => return Json(PublishResponse {
+            status: "error".to_string(),
+            message: e.to_string(),
+            message_key: "".to_string(),
+        }),
+    };
     let queue = Queue::get(queue);
-    let message_key = queue.enqueue(&message).expect("Failed to enqueue message");
+    let message_key = match queue.enqueue(&message) {
+        Ok(key) => key,
+        Err(e) => return Json(PublishResponse {
+            status: "error".to_string(), 
+            message: e.to_string(),
+            message_key: "".to_string(),
+        }),
+    };
 
     Json(PublishResponse {
         status: "success".to_string(),
