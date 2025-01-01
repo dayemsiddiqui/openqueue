@@ -21,15 +21,13 @@ impl Queue {
 
     pub fn clear(&self) -> bool {
         let prefix = format!("{}:", self.name);
-        let db = get_db().lock().expect("Failed to lock database");
+        let db = get_db().read();
         let txn = db.transaction();
         
-        // Return true if the queue is empty
         if db.prefix_iterator(&prefix.as_bytes()).next().is_none() {
             return true;
         }
 
-        // Collect keys and delete in transaction
         for result in db.prefix_iterator(&prefix.as_bytes()) {
             let (key, _) = result.expect("Failed to read key");
             txn.delete(&key).expect("Failed to delete key");
@@ -43,12 +41,9 @@ impl Queue {
 
     pub fn consume(&self) -> Result<Option<Message>, Error> {
         let prefix = format!("{}:", self.name);
-        let db = get_db().lock().expect("Failed to lock database");
-        
-        // Start a transaction
+        let db = get_db().read();
         let txn = db.transaction();
         
-        // Get the first message in the queue using the main db   
         let mut prefix_iter = db.prefix_iterator(&prefix.as_bytes());
         let result = match prefix_iter.next() {
             Some(Ok((key, message))) => {
@@ -61,14 +56,10 @@ impl Queue {
 
         match result {
             Ok(Some((message_key, message))) => {
-                // Delete the message from the queue
                 txn.delete(&message_key).expect("Failed to delete message from queue");  
-
-                // Store this message in the "processing" queue
                 let processing_key = format!("processing:{}", message.id);
                 let message_bytes = message.as_bytes().expect("Failed to serialize message");
                 txn.put(processing_key.as_bytes(), &message_bytes).expect("Failed to store message in processing queue");   
-
                 txn.commit().expect("Failed to commit transaction");    
                 Ok(Some(message))
             }
@@ -80,7 +71,7 @@ impl Queue {
     pub fn ack(&self, message_id: &str) -> Result<bool, Error> {
         match self.is_processing(message_id) {
             true => {
-                let db = get_db().lock().expect("Failed to lock database");
+                let db = get_db().read();
                 let txn = db.transaction();
                 let processing_key = format!("processing:{}", message_id);
                 txn.delete(&processing_key.as_bytes()).expect("Failed to delete message from processing queue");
@@ -92,7 +83,7 @@ impl Queue {
     }
 
     pub fn is_processing(&self, message_id: &str) -> bool {
-        let db = get_db().lock().expect("Failed to lock database");
+        let db = get_db().read();
         let processing_key = format!("processing:{}", message_id);
         let result = db.get(&processing_key.as_bytes());
         match result {
